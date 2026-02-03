@@ -1,0 +1,5 @@
+Index: 236  Start: 764.000  End: 764.000
+Original: CV.
+Cleaned: CV.
+Translated: CV.
+---
