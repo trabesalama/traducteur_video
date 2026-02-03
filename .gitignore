@@ -8,3 +8,35 @@ wheels/
 
 # Virtual environments
 .venv
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+
+# Cache and temp
+audio_cache/
+translation_cache.json
+temp_tts_segments/
+*.tmp
+*.temp
+*.log
+
+# MoviePy / FFmpeg outputs
+*.mp4
+*.mov
+*.mkv
+*.avi
+
+# Python
+__pycache__/
+*.py[co]
+
+# Other
+*.db
+.idea/
