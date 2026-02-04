@@ -1,0 +1,971 @@
+1
+00:00:00,000 --> 00:00:06,000
+Bonjour à tous, merci de considérer ce cours incroyable, qui est un cours complet et détaillé sur MLOps
+
+2
+00:00:06,000 --> 00:00:08,000
+cours, avec un projet de science des données de bout en bout.
+
+3
+00:00:09,000 --> 00:00:14,000
+Dans cette vidéo, je vais parler du cycle de vie d'un projet de science des données.
+
+4
+00:00:14,000 --> 00:00:17,000
+Qu'est-ce qu'un ingénieur en données massives fait spécifiquement ?
+
+5
+00:00:17,000 --> 00:00:19,000
+Qu'est-ce qu'un scientifique de données fait réellement ?
+
+6
+00:00:20,000 --> 00:00:20,000
+Vous savez ?
+
+7
+00:00:20,000 --> 00:00:27,000
+Et dans ce cours entier, quels outils MLOps allons-nous spécifiquement couvrir et comment ils sont basically
+
+8
+00:00:27,000 --> 00:00:30,000
+utilisés dans quel module ils sont basically utilisés.
+
+9
+00:00:30,000 --> 00:00:31,000
+Nous en parlerons.
+
+10
+00:00:31,000 --> 00:00:32,000
+D'accord.
+
+11
+00:00:32,000 --> 00:00:37,000
+Donc si vous voyez cela, j'ai créé de nombreux diagrammes et ici j'ai juste mis le
+
+12
+00:00:37,000 --> 00:00:41,000
+logo de chaque outil MLOps que nous couvrons dans ce cours.
+
+13
+00:00:41,000 --> 00:00:41,000
+D'accord.
+
+14
+00:00:41,000 --> 00:00:48,000
+Donc nous avons DVC, nous avons MLflow, nous avons Apache Airflow, nous avons Astronome, nous avons git, nous avons
+
+15
+00:00:48,000 --> 00:00:53,000
+GitHub, nous avons AWS, nous avons Docker, nous avons GitHub action.
+
+16
+00:00:53,000 --> 00:00:55,000
+Nous avons Amazon SageMaker.
+
+17
+00:00:55,000 --> 00:00:57,000
+Nous avons Grafana.
+
+18
+00:00:57,000 --> 00:00:58,000
+Nous avons MongoDB.
+
+19
+00:00:58,000 --> 00:00:59,000
+Nous avons Postgres Grace.
+
+20
+00:00:59,000 --> 00:01:01,000
+Et nous avons Python.
+
+21
+00:01:01,000 --> 00:01:06,000
+Euh, avec cela, vous savez, une autre nuage que j'ai utilisé dans l'un des projets est à propos
+
+22
+00:01:06,000 --> 00:01:07,000
+Azure.
+
+23
+00:01:07,000 --> 00:01:07,000
+D'accord.
+
+24
+00:01:07,000 --> 00:01:09,000
+Donc Azure est également couvert ici.
+
+25
+00:01:09,000 --> 00:01:14,000
+Euh, j'ai montré le déploiement comment vous pouvez probablement le convertir en un conteneur Docker et probablement
+
+26
+00:01:14,000 --> 00:01:16,000
+déployer dans Azure Web conteneur lui-même.
+
+27
+00:01:16,000 --> 00:01:16,000
+Droit.
+
+28
+00:01:16,000 --> 00:01:17,000
+Application Web elle-même.
+
+29
+00:01:17,000 --> 00:01:20,000
+Donc tout sera discuté dans ce cours spécifique.
+
+30
+00:01:20,000 --> 00:01:21,000
+Mais avant d'aller plus loin.
+
+31
+00:01:21,000 --> 00:01:21,000
+Droit.
+
+32
+00:01:21,000 --> 00:01:27,000
+Vous devez vraiment comprendre ce qu'est un ingénieur MLOps spécifiquement dans un projet de science des données de bout en bout
+
+33
+00:01:27,000 --> 00:01:28,000
+projet.
+
+34
+00:01:28,000 --> 00:01:31,000
+Donc d'abord je parlerai du cycle de vie d'un projet de science des données.
+
+35
+00:01:31,000 --> 00:01:37,000
+Donc si vous voyez ces deux diagrammes, ce diagramme et l'autre diagramme ici, c'est
+
+36
+00:01:37,000 --> 00:01:40,000
+plus à propos du cycle de vie d'un projet de science des données.
+
+37
+00:01:40,000 --> 00:01:45,000
+Et puis ce que nous ferons, c'est que pendant que nous discutons de ce cycle de vie, où tous les outils MLOps
+
+38
+00:01:45,000 --> 00:01:50,000
+nous utiliserons, où, vous savez, parce que dans notre projet de science des données de bout en bout que nous avons discuté
+
+39
+00:01:50,000 --> 00:01:53,000
+dans ce cours particulier, nous inclurons également cet outil MLOps entier.
+
+40
+00:01:53,000 --> 00:01:54,000
+D'accord.
+
+41
+00:01:54,000 --> 00:02:00,000
+Donc ici, euh, voyez, comprenez que pour comprendre le cycle de vie d'un projet de science des données.
+
+42
+00:02:00,000 --> 00:02:05,000
+Donc premièrement, disons qu'il y a un projet de science des données ou un projet d'ingénierie de données,
+
+43
+00:02:05,000 --> 00:02:05,000
+droit?
+
+44
+00:02:05,000 --> 00:02:12,000
+Donc premièrement, la première tâche, la première étape consiste basically à recueillir les exigences,
+
+45
+00:02:12,000 --> 00:02:18,000
+vous savez, maintenant dans la collecte des exigences, nous avons euh, des experts du domaine ou des propriétaires de produits ainsi que
+
+46
+00:02:18,000 --> 00:02:19,000
+des analystes commerciaux.
+
+47
+00:02:19,000 --> 00:02:24,000
+Donc si vous regardez probablement dans une équipe de science des données, euh, il n'y aura pas seulement des scientifiques de données ou des
+
+48
+00:02:24,000 --> 00:02:25,000
+analystes de données.
+
+49
+00:02:25,000 --> 00:02:30,000
+Il y aura beaucoup de rôles et de responsabilités différents comme des experts du domaine ou des propriétaires de produits.
+
+50
+00:02:30,000 --> 00:02:32,000
+Vous aurez également des analystes commerciaux.
+
+51
+00:02:32,000 --> 00:02:33,000
+Et tout va bien.
+
+52
+00:02:33,000 --> 00:02:36,000
+Donc disons que ces deux groupes de personnes sont comme ces deux personnes.
+
+53
+00:02:36,000 --> 00:02:36,000
+Droit.
+
+54
+00:02:36,000 --> 00:02:41,000
+Et quand je dis expert du domaine ou propriétaire de produit, cette personne aura une connaissance approfondie de
+
+55
+00:02:41,000 --> 00:02:45,000
+domaine avec respect à ce projet particulier de science des données.
+
+56
+00:02:45,000 --> 00:02:48,000
+Disons que ce projet particulier provient d'une entreprise basée sur des produits.
+
+57
+00:02:49,000 --> 00:02:49,000
+Droit.
+
+58
+00:02:49,000 --> 00:02:53,000
+Donc le projet de science des données peut provenir d'un département de vente.
+
+59
+00:02:53,000 --> 00:02:56,000
+Il peut provenir du département de commerce électronique.
+
+60
+00:02:56,000 --> 00:02:58,000
+Il peut provenir de différents départements.
+
+61
+00:02:58,000 --> 00:02:58,000
+Droit.
+
+62
+00:02:58,000 --> 00:03:03,000
+Et ici avec respect à ce cas d'utilisation particulier, nous allons résoudre ce projet de science des données.
+
+63
+00:03:03,000 --> 00:03:07,000
+Donc évidemment la personne qui est expérimentée dans ce domaine sera le propriétaire de produit.
+
+64
+00:03:07,000 --> 00:03:08,000
+Droit.
+
+65
+00:03:08,000 --> 00:03:13,000
+Donc cette personne saura quoi est-ce que le projet de science des données qu'ils veulent vraiment mettre en œuvre?
+
+66
+00:03:13,000 --> 00:03:13,000
+D'accord.
+
+67
+00:03:13,000 --> 00:03:16,000
+Maintenant cette personne avec l'analyste commercial.
+
+68
+00:03:16,000 --> 00:03:18,000
+Donc ici les analystes commerciaux sont les personnes les plus chanceuses.
+
+69
+00:03:18,000 --> 00:03:27,000
+Ce que je ressens parce que si votre client est dans certains pays étrangers et que vous avez vraiment la chance d'interagir avec eux de voyager
+
+70
+00:03:27,000 --> 00:03:32,000
+le monde entier lui-même.
+
+71
+00:03:32,000 --> 00:03:33,000
+Droit.
+
+72
+00:03:33,000 --> 00:03:40,000
+Donc cet analyste commercial, avec l'expert du domaine ou le propriétaire de produit, ils auront beaucoup de discussion
+
+73
+00:03:40,000 --> 00:03:42,000
+et ils noteront toutes les exigences.
+
+74
+00:03:42,000 --> 00:03:42,000
+Droit.
+
+75
+00:03:42,000 --> 00:03:45,000
+Donc euh, ils noteront toutes les exigences.
+
+76
+00:03:45,000 --> 00:03:48,000
+Donc ici les exigences entières seront préparées.
+
+77
+00:03:48,000 --> 00:03:55,000
+Et ils noteront toutes les exigences comme euh, quelles histoires doivent être complétées et ils
+
+78
+00:03:55,000 --> 00:03:59,000
+essaieront de diviser cette histoire entière sous forme de sprints.
+
+79
+00:03:59,000 --> 00:04:04,000
+D'accord, donc ici dans un projet de science des données, également nous sommes dans la plupart des entreprises.
+
+80
+00:04:04,000 --> 00:04:06,000
+Ils suivent un processus agile.
+
+81
+00:04:06,000 --> 00:04:11,000
+Maintenant le processus agile signifie basically qu'il existe différents processus de développement.
+
+82
+00:04:11,000 --> 00:04:13,000
+Vous savez que nous utilisons spécifiquement le processus agile.
+
+83
+00:04:13,000 --> 00:04:15,000
+Il existe comme un modèle de cascade et tout.
+
+84
+00:04:15,000 --> 00:04:19,000
+Donc dans la plupart des projets de science des données, ce que j'ai vu dans mon expérience, ils suivent généralement un
+
+85
+00:04:19,000 --> 00:04:24,000
+processus agile où ils créent des sprints comme il y aura un sprint un, il y aura un sprint deux, et
+
+86
+00:04:24,000 --> 00:04:30,000
+chaque sprint ils essaieront de diviser ces exigences comme quelles modules doivent être développées
+
+87
+00:04:30,000 --> 00:04:33,000
+dans le sprint un, quelles modules doivent être développées dans le sprint deux.
+
+88
+00:04:33,000 --> 00:04:39,000
+Donc une fois que les exigences sont basically écrites, okay alors toutes ces exigences sont envoyées à l'
+
+89
+00:04:39,000 --> 00:04:43,000
+équipe de données analyste ou de scientifiques de données spécifiquement dans un projet de science des données.
+
+90
+00:04:43,000 --> 00:04:47,000
+Maintenant encore, cette équipe de données analyste et de scientifiques de données aura une discussion avec l'expert du domaine
+
+91
+00:04:47,000 --> 00:04:55,000
+ou le propriétaire de produit et ils essaieront de découvrir quelles données, quelles données seront nécessaires pour
+
+92
+00:04:55,000 --> 00:04:57,000
+résoudre ce projet particulier.
+
+93
+00:04:57,000 --> 00:04:57,000
+D'accord.
+
+94
+00:04:57,000 --> 00:04:58,000
+Résoudre ce problème particulier.
+
+95
+00:04:58,000 --> 00:05:02,000
+Donc ils identifieront les données d'accord.
+
+96
+00:05:02,000 --> 00:05:05,000
+Ils identifieront spécifiquement les données.
+
+97
+00:05:05,000 --> 00:05:11,000
+Maintenant quand je dis identifier les données que cela signifie basically, euh, vous savez, ils essaieront d'identifier la
+
+98
+00:05:11,000 --> 00:05:14,000
+source des données d'accord.
+
+99
+00:05:14,000 --> 00:05:17,000
+Maintenant les données peuvent être présentes dans la base de données interne.
+
+100
+00:05:17,000 --> 00:05:20,000
+Il peut être présent dans une API tierce ou une API nuage.
+
+101
+00:05:20,000 --> 00:05:21,000
+Il peut également être des données API.
+
+102
+00:05:21,000 --> 00:05:23,000
+Il peut également être des données IoT.
+
+103
+00:05:23,000 --> 00:05:24,000
+Droit.
+
+104
+00:05:24,000 --> 00:05:29,000
+Euh, dans dans mes précédentes entreprises où je travaillais avec des produits électroniques, vous savez, là nous avions
+
+105
+00:05:29,000 --> 00:05:32,000
+beaucoup d'appareils IoT et nous utilisions pour capturer ces données spécifiques.
+
+106
+00:05:32,000 --> 00:05:36,000
+Donc nous devons identifier les données et pour identifier les données.
+
+107
+00:05:36,000 --> 00:05:40,000
+Encore une fois, nous aurons besoin de l'aide d'un propriétaire de produit ou d'un expert du domaine car ils peuvent également être
+
+108
+00:05:40,000 --> 00:05:42,000
+en ayant les données au sein de l'entreprise.
+
+109
+00:05:42,000 --> 00:05:45,000
+Ils peuvent être dépendants de certaines tierces parties et tout.
+
+110
+00:05:45,000 --> 00:05:48,000
+Donc ces sortes de données, ils les identifieront d'abord.
+
+111
+00:05:48,000 --> 00:05:55,000
+Une fois qu'ils identifient la source de données alors ici mon équipe d'ingénierie de données massives interviendra maintenant,
+
+112
+00:05:55,000 --> 00:06:00,000
+parce que cette équipe d'ingénierie de données massives créera un pipeline de données.
+
+113
+00:06:02,000 --> 00:06:03,000
+Pipeline de données.
+
+114
+00:06:03,000 --> 00:06:09,000
+Maintenant, ce pipeline de données est créé de telle sorte que, premièrement, quelle que soit la source que nous identifions,
+
+115
+00:06:09,000 --> 00:06:14,000
+droit, nous capturerons toutes ces sources particulières, puis nous combinerons toutes ces données sous forme de pipeline de données.
+
+116
+00:06:14,000 --> 00:06:15,000
+Droit.
+
+117
+00:06:15,000 --> 00:06:20,000
+Maintenant, l'un des pipelines de données les plus courants que vous verrez dans les industries qui sera fait
+
+118
+00:06:20,000 --> 00:06:23,000
+par l'équipe d'ingénierie de données massives, c'est rien d'autre que le pipeline ETL.
+
+119
+00:06:24,000 --> 00:06:26,000
+D'accord, pipeline ETL.
+
+120
+00:06:26,000 --> 00:06:30,000
+Maintenant ce pipeline ETL n'est rien d'autre que extraire, transformer et charger d'accord.
+
+121
+00:06:30,000 --> 00:06:33,000
+Nous extrayons basically des sources de données multiples.
+
+122
+00:06:33,000 --> 00:06:38,000
+Nous faisons une sorte de transformation, puis nous chargeons finalement toutes ces données combinées dans une source de données
+
+123
+00:06:38,000 --> 00:06:39,000
+comme MongoDB.
+
+124
+00:06:39,000 --> 00:06:41,000
+Cela peut être PostgreSQL et tout.
+
+125
+00:06:41,000 --> 00:06:44,000
+Donc ici nous couvrirons tout ce pipeline ETL.
+
+126
+00:06:44,000 --> 00:06:49,000
+Aussi j'ai pris quelques projets et je vous montrerai comment un pipeline ETL sera utilisé.
+
+127
+00:06:49,000 --> 00:06:52,000
+Et nous utiliserons spécifiquement Apache Airflow ici.
+
+128
+00:06:52,000 --> 00:06:58,000
+Et c'est un outil MLOps incroyable, euh, qui est basically utilisé pour créer ce pipeline ETL,
+
+129
+00:06:58,000 --> 00:07:02,000
+parce que cela aide actually à planifier les droits de planification.
+
+130
+00:07:02,000 --> 00:07:06,000
+Parce que si disons que mes données proviennent d'une API tierce tous les jours, j'ai besoin de probablement
+
+131
+00:07:06,000 --> 00:07:10,000
+obtenir ces données particulières afin que je puisse actually planifier cela avec l'aide d'Apache Airflow.
+
+132
+00:07:10,000 --> 00:07:10,000
+D'accord.
+
+133
+00:07:10,000 --> 00:07:12,000
+Et nous créerons ce pipeline ETL.
+
+134
+00:07:12,000 --> 00:07:18,000
+Donc ici dans ce projet MLOps, vous savez, mon objectif principal était de vous donner la, euh, la substance de chaque
+
+135
+00:07:18,000 --> 00:07:18,000
+et tout.
+
+136
+00:07:18,000 --> 00:07:20,000
+Comme fonctionne une équipe d'ingénierie de données massives?
+
+137
+00:07:20,000 --> 00:07:25,000
+Parce que nous nous concentrerons également sur le déploiement de la façon de déployer ce pipeline ETL entier.
+
+138
+00:07:25,000 --> 00:07:27,000
+Donc je me concentrerai sur cela d'accord.
+
+139
+00:07:27,000 --> 00:07:31,000
+Donc dans ce particulier euh comme dans l'un des modules d'accord.
+
+140
+00:07:31,000 --> 00:07:33,000
+Nous discuterons de pipeline de données.
+
+141
+00:07:33,000 --> 00:07:35,000
+Nous discuterons de pipeline ETL.
+
+142
+00:07:35,000 --> 00:07:37,000
+Nous ferons également le déploiement.
+
+143
+00:07:38,000 --> 00:07:40,000
+Et pour cela nous utiliserons le nuage AWS et tout.
+
+144
+00:07:40,000 --> 00:07:40,000
+D'accord.
+
+145
+00:07:40,000 --> 00:07:44,000
+Donc euh cela fait ce qu'une équipe d'ingénierie de données massives fait.
+
+146
+00:07:44,000 --> 00:07:49,000
+Ils créent basically des pipelines de données où ils intègrent plusieurs sources de données puis
+
+147
+00:07:49,000 --> 00:07:53,000
+essaient de combiner les données et ils les chargent dans une source de données spécifique.
+
+148
+00:07:53,000 --> 00:07:57,000
+Une fois que la source de données est, disons que la source de données ici est utilisée comme MongoDB, d'accord?
+
+149
+00:07:57,000 --> 00:08:02,000
+Donc une fois que toutes ces données sont basically chargées dans MongoDB, cela continuera à être mis à jour sur
+
+150
+00:08:02,000 --> 00:08:03,000
+une base quotidienne ou hebdomadaire.
+
+151
+00:08:03,000 --> 00:08:05,000
+Cela dépend des données.
+
+152
+00:08:05,000 --> 00:08:08,000
+Ceci est probablement venu des API tierces ou de toute autre source de données.
+
+153
+00:08:08,000 --> 00:08:09,000
+D'accord.
+
+154
+00:08:09,000 --> 00:08:13,000
+Maintenant une fois que cela est fait, alors le cycle de vie d'un projet de science des données arrive.
+
+155
+00:08:13,000 --> 00:08:18,000
+Maintenant, juste en comprenant cela, vous êtes capable de comprendre que combien de rôles et de responsabilités
+
+156
+00:08:18,000 --> 00:08:19,000
+différents il y a, d'accord?
+
+157
+00:08:19,000 --> 00:08:22,000
+L'un des rôles et responsabilités ici sont comme propriétaire de produit.
+
+158
+00:08:22,000 --> 00:08:26,000
+Ensuite vous avez l'analyste commercial, puis vous avez le scientifique de données, puis l'analyste de données, puis vous avez l'équipe
+
+159
+00:08:26,000 --> 00:08:27,000
+d'ingénierie de données massives, d'accord?
+
+160
+00:08:27,000 --> 00:08:32,000
+Et ce cours entier MLOps je couvrirai chaque chose avec respect à cela, d'accord?
+
+161
+00:08:32,000 --> 00:08:37,000
+Évidemment, je ne couvrirai pas propriétaire de produit ou analyste commercial car cela relève plus de la documentation
+
+162
+00:08:37,000 --> 00:08:38,000
+sorte de choses.
+
+163
+00:08:38,000 --> 00:08:42,000
+Ils utilisent des outils comme JIRA confluence pour écrire toutes les exigences.
+
+164
+00:08:42,000 --> 00:08:47,000
+Mais ici à partir de cela, identifier la source de données et tout, nous essaierons d'aller de l'avant et de la mettre en œuvre.
+
+165
+00:08:47,000 --> 00:08:49,000
+Maintenant, une fois que nous allons au cycle de vie d'un projet de science des données.
+
+166
+00:08:49,000 --> 00:08:53,000
+Maintenant la prochaine chose sera que quelles que soient les données qui ont été collectées dans la source de données, d'accord?
+
+167
+00:08:54,000 --> 00:08:59,000
+Donc disons ici je vais essayer de connecter cela d'accord.
+
+168
+00:08:59,000 --> 00:09:01,000
+Je vais juste essayer d'aller de l'avant et de le connecter.
+
+169
+00:09:01,000 --> 00:09:03,000
+Disons que ceci est ma source de données.
+
+170
+00:09:03,000 --> 00:09:08,000
+Euh, l'une des sources de données que j'ai également utilisée est quelque chose appelé PostgreSQL.
+
+171
+00:09:08,000 --> 00:09:08,000
+D'accord.
+
+172
+00:09:08,000 --> 00:09:10,000
+Cela peut être Postgres, cela peut être MongoDB.
+
+173
+00:09:10,000 --> 00:09:13,000
+Dans un exemple j'ai utilisé MongoDB.
+
+174
+00:09:13,000 --> 00:09:13,000
+D'accord.
+
+175
+00:09:13,000 --> 00:09:20,000
+Donc considérons MongoDB MongoDB et ce MongoDB sera également hébergé dans le nuage d'accord.
+
+176
+00:09:20,000 --> 00:09:24,000
+Maintenant à partir de ce pipeline particulier nous le stockons dans MongoDB.
+
+177
+00:09:25,000 --> 00:09:29,000
+Maintenant à partir de MongoDB, notre cycle de vie d'un projet de science des données démarre d'accord.
+
+178
+00:09:30,000 --> 00:09:32,000
+Maintenant encore une fois, ici nous sommes.
+
+179
+00:09:32,000 --> 00:09:37,000
+Lorsque nous parlons de cycle de vie ou de projet de science des données, la première étape que j'ai probablement
+
+180
+00:09:37,000 --> 00:09:41,000
+manquée ici, pour l'écrire, c'est rien d'autre que l'ingestion de données.
+
+181
+00:09:42,000 --> 00:09:49,000
+Donc ici c'est rien d'autre que l'ingestion de données.
+
+182
+00:09:51,000 --> 00:09:53,000
+Donc ceci est l'étape avant l'ingénierie des fonctionnalités.
+
+183
+00:09:53,000 --> 00:09:58,000
+Donc je voudrais considérer cela comme ma première étape d'accord.
+
+184
+00:09:58,000 --> 00:10:01,000
+Ensuite je vais à cette prochaine étape.
+
+185
+00:10:01,000 --> 00:10:03,000
+Ou laissez-moi faire une chose.
+
+186
+00:10:03,000 --> 00:10:08,000
+Laissez-moi juste le dessiner en haut pour que cela soit facile pour vous de comprendre.
+
+187
+00:10:08,000 --> 00:10:13,000
+D'accord, donc ici ma première étape est rien d'autre que l'ingestion de données.
+
+188
+00:10:14,000 --> 00:10:18,000
+Ingestion de données d'accord.
+
+189
+00:10:19,000 --> 00:10:20,000
+Donc ici c'est ma première étape.
+
+190
+00:10:20,000 --> 00:10:23,000
+Ensuite nous allons à l'ingénierie des fonctionnalités, la sélection des fonctionnalités et tout.
+
+191
+00:10:23,000 --> 00:10:25,000
+Maintenant quel est le travail dans l'ingestion de données ici?
+
+192
+00:10:25,000 --> 00:10:32,000
+Euh notre objectif principal est de lire les données à partir de la source de données d'accord.
+
+193
+00:10:33,000 --> 00:10:39,000
+Donc lorsque je parle d'ingestion de données, je vous montrerai comment lire les données à partir du nuage.
+
+194
+00:10:39,000 --> 00:10:43,000
+Disons comment lire les données à partir d'un bucket S3 ou d'un bucket AWS S3.
+
+195
+00:10:43,000 --> 00:10:49,000
+Comment lire les données à partir de MongoDB Cela peut également être comment lire des données à partir de Postgres.
+
+196
+00:10:49,000 --> 00:10:50,000
+Droit.
+
+197
+00:10:50,000 --> 00:10:53,000
+Donc tous ces sortes d'exemples, nous essaierons de les couvrir.
+
+198
+00:10:53,000 --> 00:10:53,000
+D'accord.
+
+199
+00:10:53,000 --> 00:10:55,000
+Dans l'ingestion de données.
+
+200
+00:10:55,000 --> 00:10:56,000
+Droit.
+
+201
+00:10:56,000 --> 00:11:03,000
+Et euh pendant que nous lisons probablement, euh il y aura des outils MLOps séparés qui seront nécessaires.
+
+202
+00:11:03,000 --> 00:11:11,000
+L'un des outils MLOps importants qui sera utilisé ici est quelque chose appelé DVC, DVC.
+
+203
+00:11:11,000 --> 00:11:13,000
+DVC signifie basically contrôle de versionnement de données.
+
+204
+00:11:13,000 --> 00:11:14,000
+D'accord.
+
+205
+00:11:14,000 --> 00:11:17,000
+Donc ici vous serez en mesure de voir que j'ai utilisé DVC.
+
+206
+00:11:17,000 --> 00:11:21,000
+Donc nous parlerons de pourquoi DVC sera important ici.
+
+207
+00:11:21,000 --> 00:11:25,000
+Parce que le versionnement des données est également important car avec respect à chaque formation que nous faisons pour notre
+
+208
+00:11:25,000 --> 00:11:30,000
+modèle, d'accord, il est important que nous ayons un versionnement approprié des données car demain les données
+
+209
+00:11:30,000 --> 00:11:30,000
+peuvent changer.
+
+210
+00:11:30,000 --> 00:11:33,000
+Il peut également ajouter certaines fonctionnalités.
+
+211
+00:11:33,000 --> 00:11:37,000
+Il peut changer tout le format des données lui-même qui provient de la source de données.
+
+212
+00:11:37,000 --> 00:11:37,000
+D'accord.
+
+213
+00:11:37,000 --> 00:11:43,000
+Donc ici, euh, si je parle de DVC, DVC est un outil MLOps que j'utiliserai basically ici
+
+214
+00:11:43,000 --> 00:11:44,000
+dans l'équipe d'ingénierie de données massives.
+
+215
+00:11:44,000 --> 00:11:49,000
+Pendant que nous créons le pipeline de données, nous utiliserons spécifiquement Airflow, vous savez, pour probablement
+
+216
+00:11:49,000 --> 00:11:51,000
+créer le pipeline ETL entier.
+
+217
+00:11:51,000 --> 00:11:53,000
+Ensuite après cela, nous allons à l'ingénierie des fonctionnalités.
+
+218
+00:11:53,000 --> 00:11:58,000
+Encore une fois, dans ce cours nous n'avons pas concentré plus sur l'ingénierie des fonctionnalités ou différents types de fonctionnalités
+
+219
+00:11:58,000 --> 00:11:58,000
+ingénierie.
+
+220
+00:11:58,000 --> 00:12:01,000
+Sinon ce cours va être très long.
+
+221
+00:12:01,000 --> 00:12:06,000
+Mais quelques ingénieries de base des fonctionnalités afin que je vous montre dans un projet complet de bout en bout
+
+222
+00:12:06,000 --> 00:12:07,000
+projet.
+
+223
+00:12:07,000 --> 00:12:12,000
+Mais, euh, si vous regardez probablement certains de mes autres cours de machine learning et tout, j'ai
+
+224
+00:12:12,000 --> 00:12:15,000
+concentré plus sur l'ingénierie des fonctionnalités et la sélection des fonctionnalités.
+
+225
+00:12:15,000 --> 00:12:15,000
+D'accord.
+
+226
+00:12:15,000 --> 00:12:20,000
+Donc ceci est un module comme la transformation des fonctionnalités où nous faisons spécifiquement l'EDA la gestion des valeurs
+
+227
+00:12:20,000 --> 00:12:21,000
+manquantes, la gestion des valeurs aberrantes et tout.
+
+228
+00:12:21,000 --> 00:12:26,000
+Ensuite nous avons la sélection des fonctionnalités où nous sélectionnons probablement les meilleures fonctionnalités requises pour le modèle.
+
+229
+00:12:26,000 --> 00:12:28,000
+Maintenant ceci est l'étape la plus importante.
+
+230
+00:12:28,000 --> 00:12:30,000
+C'est la création du modèle et le réglage des hyperparamètres.
+
+231
+00:12:30,000 --> 00:12:34,000
+Maintenant pour la création du modèle et le réglage des hyperparamètres j'utiliserai plusieurs modèles.
+
+232
+00:12:34,000 --> 00:12:39,000
+Nous essaierons d'effectuer différents réglages d'hyperparamètres nous essaierons de sélectionner les différents paramètres.
+
+233
+00:12:39,000 --> 00:12:41,000
+Un exemple j'ai montré avec l'aide de Hyperopt.
+
+234
+00:12:42,000 --> 00:12:44,000
+Un exemple j'ai montré avec Gridsearchcv.
+
+235
+00:12:44,000 --> 00:12:44,000
+CV.
+
+236
+00:12:44,000 --> 00:12:46,000
+Et puis vous pouvez également aller de l'avant et essayer.
+
+237
+00:12:46,000 --> 00:12:48,000
+J'ai également utilisé Randomizedsearchcv dans un exemple.
+
+238
+00:12:48,000 --> 00:12:49,000
+D'accord.
+
+239
+00:12:49,000 --> 00:12:53,000
+Donc vous serez en mesure de voir tous ces sortes de réglages d'hyperparamètres lorsque je les fais.
+
+240
+00:12:53,000 --> 00:12:58,000
+Et la raison pour laquelle je fais cela, parce qu'après avoir effectué le réglage des hyperparamètres, j'ai à enregistrer
+
+241
+00:12:58,000 --> 00:12:59,000
+chaque métrique.
+
+242
+00:13:00,000 --> 00:13:08,000
+Et ici j'utiliserai quelque chose appelé MLflow, parce que nous allons probablement suivre les expériences ici.
+
+243
+00:13:08,000 --> 00:13:11,000
+Don

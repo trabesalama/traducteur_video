@@ -1,3 +1,9 @@
-pysrt 
-pydub 
+pysrt
+pydub
 TTS
+python-dotenv
+groq
+edge-tts
+moviepy
+faster-whisper
+openai-whisper

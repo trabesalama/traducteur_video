@@ -5,8 +5,10 @@ import re
 from dotenv import load_dotenv
 from groq import Groq
 import edge_tts
-from moviepy import VideoFileClip, AudioFileClip
+from moviepy.video.io.VideoFileClip import VideoFileClip
+from moviepy.audio.io.AudioFileClip import AudioFileClip
 from pydub import AudioSegment
+import argparse
 
 # GUI imports
 import threading
@@ -24,13 +26,9 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
     raise ValueError("La clé API GROQ n'est pas définie dans le fichier .env")
 
-# 2. Configuration des fichiers (valeurs par défaut, modifiables via l'UI ou la CLI)
-# Chemins par défaut fournis par l'utilisateur
-INPUT_VIDEO = r"D:/tah/D4 - AI AGENTIC/Udemy - The Complete Agentic AI Engineering Course (2025) 2025-4/1 - Week 1/15 -Day 3 - Connecting Agentic Patterns to Tool Use Essential AI Building Blocks.mp4"
-INPUT_SUBTITLE = r"D:/tah/D4 - AI AGENTIC/Udemy - The Complete Agentic AI Engineering Course (2025) 2025-4/1 - Week 1/15 -Day 3 - Connecting Agentic Patterns to Tool Use Essential AI Building Blocks.vtt"
-FRENCH_SUBTITLE_DEFAULT = r"D:/tah/D4 - AI AGENTIC/Udemy - The Complete Agentic AI Engineering Course (2025) 2025-4/1 - Week 1/15 -Day 3 - Connecting Agentic Patterns to Tool Use Essential AI Building Blocks_fr.vtt"
-OUTPUT_VIDEO = r"D:/tah/D4 - AI AGENTIC/Udemy - The Complete Agentic AI Engineering Course (2025) 2025-4/1 - Week 1/15 -Day 3 - Connecting Agentic Patterns to Tool Use Essential AI Building Blocks_fr.mp4"
-TEMP_AUDIO_FR = "temp_audio_fr.mp3"    # Audio français temporaire (temporaire dans le projet)
+# 2. Configuration des fichiers (modifiables via l'UI ou la CLI)
+# Aucun chemin absolu par défaut : l'utilisateur choisit toujours les fichiers.
+TEMP_AUDIO_FR = "temp_audio_fr.mp3"    # Audio français temporaire
 
 def _format_duration(seconds: float) -> str:
     seconds = max(0.0, float(seconds))
@@ -67,17 +65,34 @@ def _read_subtitle_text(path: str) -> str:
     return content
 
 def _parse_time_to_seconds(time_str: str) -> float:
-    """Convertit un timestamp SRT/VTT en secondes (ex: 00:01:02,500 ou 00:01:02.500)."""
+    """Convertit un timestamp SRT/VTT en secondes.
+
+    Gère les formats :
+    - hh:mm:ss,mmm
+    - hh:mm:ss.mmm
+    - mm:ss,mmm
+    - mm:ss.mmm
+    """
     time_str = time_str.strip()
-    # Remplace la virgule par un point pour uniformiser
+    if not time_str:
+        raise ValueError("Timestamp vide")
+
+    # Uniformiser la séparation décimale
     time_str = time_str.replace(",", ".")
-    hms, _, ms = time_str.partition(".")
+    hms, dot, ms = time_str.partition(".")
     parts = hms.split(":")
-    if len(parts) != 3:
+
+    # Accepter mm:ss ou hh:mm:ss
+    if len(parts) == 2:
+        h = 0
+        m, s = parts
+    elif len(parts) == 3:
+        h, m, s = parts
+    else:
         raise ValueError(f"Format de temps invalide: {time_str}")
-    h, m, s = parts
+
     base = int(h) * 3600 + int(m) * 60 + int(s)
-    frac = float("0." + ms) if ms else 0.0
+    frac = float("0." + ms) if (dot and ms.isdigit()) else 0.0
     return base + frac
 
 def _parse_subtitles_with_times(path: str):
@@ -248,6 +263,93 @@ def _chunk_text_for_tts(text: str, max_chars: int = 1000):
     print(f"   -> Texte découpé en {len(chunks)} morceau(x) pour Edge-TTS.")
     return chunks
 
+
+def translate_first_cue(subtitle_path: str, output_subtitle_path: str) -> str:
+    """Traduit uniquement le texte du premier bloc de sous-titres en français.
+
+    - Conserve les timestamps et la structure du fichier.
+    - Écrit un nouveau fichier où seul le premier bloc textuel est remplacé par la traduction.
+    Retourne le contenu du fichier modifié.
+    """
+    print("Traduction : uniquement le premier bloc de sous-titres...")
+    if not os.path.exists(subtitle_path):
+        raise FileNotFoundError(f"Le fichier de sous-titres '{subtitle_path}' est introuvable.")
+
+    cues = _parse_subtitles_with_times(subtitle_path)
+    if not cues:
+        raise ValueError("Aucun bloc de sous-titres trouvé.")
+
+    first_text = cues[0][2]
+
+    client = Groq(api_key=GROQ_API_KEY)
+    prompt = f"""
+    Tu es un traducteur professionnel.
+    Traduits uniquement le texte suivant en français, sans ajouter d'autres explications ni modifier la ponctuation:
+
+    ---
+    {first_text}
+    ---
+
+    Retourne uniquement la traduction.
+    """
+
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            temperature=0.0,
+        )
+        translated = chat_completion.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Erreur Groq lors de la traduction du premier bloc: {e}. Tentative de fallback...")
+        chat_completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama-3.3-70b-versatile",
+            temperature=0.0,
+        )
+        translated = chat_completion.choices[0].message.content.strip()
+
+    # Lire le fichier original et remplacer le premier bloc textuel
+    with open(subtitle_path, "r", encoding="utf-8") as f:
+        lines = [ln.rstrip("\n") for ln in f]
+
+    out_lines = []
+    i = 0
+    n = len(lines)
+    replaced = False
+    while i < n:
+        line = lines[i]
+        out_lines.append(line)
+        if not replaced and "-->" in line:
+            # on est sur la ligne de timestamps du premier bloc possible
+            # collect following text lines until blank
+            i += 1
+            # skip any blank lines immediately after timestamps
+            text_block_idx = i
+            text_block = []
+            while i < n and lines[i].strip():
+                text_block.append(lines[i])
+                i += 1
+
+            # write translated text (single or multiple lines)
+            for tline in translated.splitlines():
+                out_lines.append(tline)
+
+            # if there was a blank line after original text, keep one
+            if i < n and not lines[i].strip():
+                out_lines.append("")
+
+            replaced = True
+            continue
+        i += 1
+
+    result = "\n".join(out_lines)
+    with open(output_subtitle_path, "w", encoding="utf-8") as f:
+        f.write(result)
+
+    print(f"   -> Fichier avec premier bloc traduit sauvegardé dans : {output_subtitle_path}")
+    return result
+
 async def generate_french_audio(text, output_path):
     """Génère l'audio Français via Edge-TTS (avec découpe en chunks pour ne rien couper)."""
     print("4. Génération de l'audio Français (Edge-TTS)...")
@@ -318,25 +420,29 @@ async def generate_french_audio_from_subtitles(subtitle_path: str, output_path: 
 
             temp_path = f"{output_path}.cue{idx}.mp3"
             temp_files.append(temp_path)
-
+            # 1) Generate a raw TTS segment
             communicate = edge_tts.Communicate(text, voice)
             await communicate.save(temp_path)
 
             seg = AudioSegment.from_file(temp_path, format="mp3")
             current_ms = len(seg)
 
-            # Ajustement de durée : accélération/ralentissement + pad/trim
+            # Ajustement de durée : utiliser directement le time-stretch via frame_rate + pad/trim.
+            # Évitons la régénération SSML pour gagner du temps.
             if current_ms == 0:
                 seg = AudioSegment.silent(duration=desired_ms)
             else:
-                speed = current_ms / desired_ms
-                new_frame_rate = int(seg.frame_rate * speed)
-                stretched = seg._spawn(seg.raw_data, overrides={"frame_rate": new_frame_rate})
-                stretched = stretched.set_frame_rate(seg.frame_rate)
-                if len(stretched) > desired_ms:
-                    seg = stretched[:desired_ms]
-                else:
-                    seg = stretched + AudioSegment.silent(duration=desired_ms - len(stretched))
+                if abs(current_ms - desired_ms) > 10:  # tolerance de 10 ms
+                    speed = current_ms / float(desired_ms)
+                    # clamp speed to reasonable bounds to avoid artefacts
+                    speed = max(0.5, min(speed, 2.0))
+                    new_frame_rate = int(seg.frame_rate * speed)
+                    stretched = seg._spawn(seg.raw_data, overrides={"frame_rate": new_frame_rate})
+                    stretched = stretched.set_frame_rate(seg.frame_rate)
+                    if len(stretched) > desired_ms:
+                        seg = stretched[:desired_ms]
+                    else:
+                        seg = stretched + AudioSegment.silent(duration=desired_ms - len(stretched))
 
             position_ms = int(start_s * 1000)
             full = full.overlay(seg, position=position_ms)
@@ -442,16 +548,32 @@ def run_process(input_video, input_subtitle, output_video, cleanup=True, output_
     timings = {}
     t_total0 = time.perf_counter()
     try:
-        if not os.path.exists(input_video):
-            print(f"Erreur : Le fichier '{input_video}' est introuvable.")
+        if not input_video or not input_subtitle:
+            print("Erreur : vidéo source ou sous-titres non spécifiés.")
             return
+        if not os.path.exists(input_video):
+            print(f"Erreur : Le fichier vidéo '{input_video}' est introuvable.")
+            return
+        if not os.path.exists(input_subtitle):
+            print(f"Erreur : Le fichier de sous-titres '{input_subtitle}' est introuvable.")
+            return
+
+        # Normalisation du chemin de sortie vidéo
+        if not output_video:
+            base, _ = os.path.splitext(input_video)
+            output_video = base + "_fr.mp4"
+            print(f"Avertissement : aucun fichier vidéo de sortie spécifié, utilisation de : {output_video}")
+        else:
+            base, ext = os.path.splitext(output_video)
+            if not ext:
+                output_video = output_video + ".mp4"
 
         # Génération du chemin de sortie des sous-titres FR (même extension, suffixe _fr)
         if output_subtitle_path:
             output_subtitle = output_subtitle_path
         else:
             root, ext = os.path.splitext(input_subtitle)
-            output_subtitle = root + "_fr" + ext
+            output_subtitle = root + "_fr" + (ext or ".vtt")
 
         t0 = time.perf_counter()
         english_subtitles = _read_subtitle_text(input_subtitle)
@@ -511,10 +633,10 @@ def build_and_launch_gui():
     frm.pack(fill='both', expand=True, padx=8, pady=8)
 
     # Input selection
-    in_path_var = tk.StringVar(value=INPUT_VIDEO)
-    sub_path_var = tk.StringVar(value=INPUT_SUBTITLE)
+    in_path_var = tk.StringVar(value="")
+    sub_path_var = tk.StringVar(value="")
     sub_out_path_var = tk.StringVar(value="")
-    out_path_var = tk.StringVar(value=OUTPUT_VIDEO)
+    out_path_var = tk.StringVar(value="")
     cleanup_var = tk.BooleanVar(value=True)
 
     def browse_input():
@@ -586,6 +708,19 @@ def build_and_launch_gui():
     original_stderr = sys.stderr
 
     def on_start():
+        # Vérifier que tous les chemins nécessaires sont renseignés
+        if not in_path_var.get().strip():
+            messagebox.showerror("Chemin manquant", "Veuillez sélectionner un fichier vidéo source.")
+            return
+        if not sub_path_var.get().strip():
+            messagebox.showerror("Chemin manquant", "Veuillez sélectionner un fichier de sous-titres anglais.")
+            return
+        if not out_path_var.get().strip():
+            # Proposer automatiquement un nom de sortie basé sur la vidéo
+            base, _ = os.path.splitext(in_path_var.get().strip())
+            suggested = base + "_fr.mp4"
+            out_path_var.set(suggested)
+
         # redirect
         sys.stdout = TextRedirector(log_widget, original_stdout)
         sys.stderr = TextRedirector(log_widget, original_stderr)
@@ -612,22 +747,34 @@ def build_and_launch_gui():
 
 # --- EXÉCUTION ---
 if __name__ == "__main__":
-    # If the user passes --cli, keep original CLI behavior. Otherwise launch the GUI if available.
-    if '--cli' in sys.argv:
-        # Mode CLI simple : utilise les constantes INPUT_VIDEO / INPUT_SUBTITLE / OUTPUT_VIDEO
-        if not os.path.exists(INPUT_VIDEO):
-            print(f"Erreur : Le fichier vidéo '{INPUT_VIDEO}' est introuvable.")
-        elif not os.path.exists(INPUT_SUBTITLE):
-            print(f"Erreur : Le fichier de sous-titres '{INPUT_SUBTITLE}' est introuvable.")
-        else:
-            try:
-                run_process(INPUT_VIDEO, INPUT_SUBTITLE, OUTPUT_VIDEO, cleanup=True, output_subtitle_path=FRENCH_SUBTITLE_DEFAULT)
-                print(f"\n✅ SUCCÈS ! La vidéo doublée est '{OUTPUT_VIDEO}'")
-                print(f"   -> Sous-titres français : '{FRENCH_SUBTITLE_DEFAULT}'")
-            except Exception as e:
-                print(f"\n❌ Le processus a échoué : {e}")
-            finally:
-                clean_up()
+    # Provide a simple CLI so the requested procedure (open VTT, translate, TTS per-cue, assemble audio, dub video)
+    # can be run from a terminal. If no CLI args are provided the GUI is launched (if available).
+    parser = argparse.ArgumentParser(description="Doublage vidéo depuis un fichier de sous-titres (VTT/SRT)")
+    parser.add_argument('--cli', action='store_true', help='Forcer le mode CLI')
+    parser.add_argument('-v', '--video', help='Fichier vidéo source (ex: input.mp4)')
+    parser.add_argument('-s', '--subtitle', help='Fichier de sous-titres source (VTT/SRT)')
+    parser.add_argument('-o', '--output', help='Fichier vidéo de sortie (ex: output_fr.mp4)')
+    parser.add_argument('--subtitle-out', help='Chemin de sortie pour les sous-titres traduits (optionnel)')
+    parser.add_argument('--translate-first-only', action='store_true', help='Traduire uniquement le premier bloc de sous-titres et sortir')
+    parser.add_argument('--no-cleanup', action='store_true', help="Ne pas supprimer les fichiers temporaires à la fin")
+
+    args = parser.parse_args()
+
+    # If user requested translate-first-only, handle it and exit early
+    if args.translate_first_only:
+        if not args.subtitle:
+            print("Erreur: --translate-first-only nécessite -s / --subtitle pour indiquer le fichier VTT/SRT")
+            sys.exit(2)
+        out_sub = args.subtitle_out
+        if not out_sub:
+            root, ext = os.path.splitext(args.subtitle)
+            out_sub = root + "_first_fr" + (ext or ".vtt")
+        translate_first_cue(args.subtitle, out_sub)
+        sys.exit(0)
+
+    # If user asked CLI or provided required file args, run without GUI
+    if args.cli or (args.video and args.subtitle):
+        cleanup = not args.no_cleanup
+        run_process(args.video, args.subtitle, args.output, cleanup, output_subtitle_path=args.subtitle_out)
     else:
-        # Launch GUI (preferred)
         build_and_launch_gui()
