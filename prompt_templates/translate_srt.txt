@@ -1,0 +1,13 @@
+# Prompt template: Translate entire SRT/VTT file
+
+You are an expert in subtitles and dubbing. Translate ONLY the visible subtitle text from English to natural spoken French.
+
+Constraints:
+- DO NOT modify any lines that contain timestamps (lines with '-->'). Keep them byte-for-byte identical and in the same order.
+- DO NOT change block numbers or timestamp formats.
+- DO NOT add, remove, or reorder any lines or blank separators.
+- DO NOT prepend or append explanatory text (e.g., "Voici le fichier..."). If the model adds a prefix, remove it before saving.
+- Return ONLY the translated subtitle file in the same format (SRT, VTT, etc.), nothing else.
+
+Short strict instruction (copy this verbatim as the final line sent to the model):
+"Return ONLY the translated file. Keep timestamps exactly. Do not output any commentary, labels, or analysis."

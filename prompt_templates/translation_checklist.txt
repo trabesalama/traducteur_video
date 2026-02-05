@@ -1,0 +1,25 @@
+# Post-translation checklist & simple verification snippet
+
+Checklist (apply after receiving model output):
+- Verify every line containing '-->' is present and unchanged (same order and content).
+- Verify the number of subtitle blocks (split by blank-line separators) is equal before and after.
+- Ensure the file remains in the same format (SRT → SRT, VTT → VTT).
+- Remove any added prefix/suffix lines (e.g., "Voici le fichier...").
+- If mismatches are detected, retry (prefer a different model or split the file into smaller chunks).
+
+Simple Python verification snippet:
+
+```python
+import re
+
+def check_subtitles_preserve_timestamps(orig_text: str, translated_text: str) -> bool:
+    orig_ts = re.findall(r'^.*-->.*$', orig_text, flags=re.MULTILINE)
+    trans_ts = re.findall(r'^.*-->.*$', translated_text, flags=re.MULTILINE)
+    if orig_ts != trans_ts:
+        return False
+    orig_blocks = re.split(r'\n\s*\n', orig_text.strip())
+    trans_blocks = re.split(r'\n\s*\n', translated_text.strip())
+    return len(orig_blocks) == len(trans_blocks)
+```
+
+If this returns False, do NOT accept the output; re-run with a safer prompt (or use Google fallback in `dub4.py`).

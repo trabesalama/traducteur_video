@@ -8,6 +8,7 @@ import edge_tts
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from pydub import AudioSegment
+from pydub.silence import detect_nonsilent
 import argparse
 
 # GUI imports
@@ -73,6 +74,17 @@ def _parse_time_to_seconds(time_str: str) -> float:
     - mm:ss,mmm
     - mm:ss.mmm
     """
+    return _parse_time_to_milliseconds(time_str) / 1000.0
+
+def _parse_time_to_milliseconds(time_str: str) -> int:
+    """Convertit un timestamp SRT/VTT en millisecondes (int) sans erreurs de float.
+
+    Gère les formats :
+    - hh:mm:ss,mmm
+    - hh:mm:ss.mmm
+    - mm:ss,mmm
+    - mm:ss.mmm
+    """
     time_str = time_str.strip()
     if not time_str:
         raise ValueError("Timestamp vide")
@@ -91,12 +103,60 @@ def _parse_time_to_seconds(time_str: str) -> float:
     else:
         raise ValueError(f"Format de temps invalide: {time_str}")
 
-    base = int(h) * 3600 + int(m) * 60 + int(s)
-    frac = float("0." + ms) if (dot and ms.isdigit()) else 0.0
-    return base + frac
+    base_ms = (int(h) * 3600 + int(m) * 60 + int(s)) * 1000
+
+    # Convertir la fraction en ms de manière robuste (1 chiffre = 100ms, 2 = 10ms, 3 = 1ms).
+    frac_digits = "".join(ch for ch in ms if ch.isdigit()) if dot else ""
+    if not frac_digits:
+        frac_ms = 0
+    elif len(frac_digits) <= 3:
+        frac_ms = int(frac_digits.ljust(3, "0"))
+    else:
+        # Arrondi à la milliseconde la plus proche (au 4e chiffre).
+        frac_ms = int(frac_digits[:3])
+        if int(frac_digits[3]) >= 5:
+            frac_ms += 1
+        if frac_ms >= 1000:
+            base_ms += 1000
+            frac_ms = 0
+
+    return base_ms + frac_ms
+
+# Regex pour détecter la fin d'une phrase (.) ou (?) en fin de texte (espaces optionnels)
+SENTENCE_END_RE = re.compile(r"[.?]\s*$")
+
+def _ends_sentence(text: str) -> bool:
+    """Vrai si le texte (après strip) se termine par . ou ?."""
+    return bool(SENTENCE_END_RE.search(text.strip())) if text else False
+
+def _merge_cues_until_sentence_end(cues: list) -> list:
+    """Fusionne les blocs successifs en un seul tant que le texte ne se termine pas par . ou ?.
+
+    Chaque bloc fusionné garde le start du premier et le end du dernier ; les textes sont
+    concaténés sur une même ligne (séparés par un espace). Les timestamps ne sont pas modifiés.
+    """
+    if not cues:
+        return []
+    merged = []
+    i = 0
+    while i < len(cues):
+        start_ms, end_ms, text = cues[i]
+        j = i + 1
+        while j < len(cues) and not _ends_sentence(text):
+            _, next_end, next_text = cues[j]
+            end_ms = next_end
+            text = f"{text} {next_text}".strip()
+            j += 1
+        merged.append((start_ms, end_ms, text))
+        i = j
+    return merged
 
 def _parse_subtitles_with_times(path: str):
-    """Parse un fichier SRT/VTT et renvoie une liste de (start_s, end_s, text)."""
+    """Parse un fichier SRT/VTT et renvoie une liste de (start_ms, end_ms, text).
+
+    Les blocs dont le texte ne se termine pas par . ou ? sont fusionnés avec les blocs
+    suivants jusqu'à trouver une fin de phrase (regex SENTENCE_END_RE).
+    """
     print(f"3. Analyse des sous-titres (avec temps) : {path}")
     if not os.path.exists(path):
         raise FileNotFoundError(f"Le fichier de sous-titres '{path}' est introuvable.")
@@ -125,8 +185,8 @@ def _parse_subtitles_with_times(path: str):
         if "-->" in line:
             try:
                 left, right = line.split("-->")
-                start_s = _parse_time_to_seconds(left.strip())
-                end_s = _parse_time_to_seconds(right.strip().split(" ")[0])
+                start_ms = _parse_time_to_milliseconds(left.strip())
+                end_ms = _parse_time_to_milliseconds(right.strip().split(" ")[0])
             except Exception:
                 i += 1
                 continue
@@ -142,37 +202,97 @@ def _parse_subtitles_with_times(path: str):
 
             text = " ".join(text_lines).strip()
             if text:
-                cues.append((start_s, end_s, text))
+                cues.append((start_ms, end_ms, text))
         else:
             i += 1
 
-    print(f"   -> {len(cues)} blocs de sous-titres détectés.")
+    cues = _merge_cues_until_sentence_end(cues)
+    print(f"   -> {len(cues)} blocs de sous-titres détectés (après fusion par fin de phrase).")
     return cues
 
 def translate_with_llama(text: str, output_subtitle_path: str) -> str:
-    """Traduit le contenu des sous-titres via Groq en conservant le format.
-
-    On demande explicitement de retourner des sous-titres au même format (SRT/VTT, etc.).
-    """
     print("2. Traduction des sous-titres avec Groq (Llama 4 Scout)...")
     client = Groq(api_key=GROQ_API_KEY)
     
+    # prompt = f"""
+    # Tu es un expert en sous-titres et en doublage.
+    # Le texte ci-dessous est un fichier de sous-titres en anglais (par exemple SRT ou VTT).
+    # Traduis UNIQUEMENT le texte visible à l'écran en français, en respectant STRICTEMENT les règles suivantes :
+    # - tu dois conserver EXACTEMENT toutes les lignes contenant "-->" (les timestamps) SANS les modifier,
+    # - tu ne changes PAS les numéros de blocs s'il y en a,
+    # - tu ne modifies JAMAIS le format des timestamps ni leur position,
+    # - SRT doit rester SRT, VTT doit rester VTT,
+    # - tu remplaces simplement le texte dialogué par sa traduction française sur les lignes prévues pour le texte.
+    
+    # Fichier de sous-titres :
+    # {text}
+    
+    # Retourne UNIQUEMENT le fichier de sous-titres complet en français, au même format, avec les mêmes timestamps.
+    # """
     prompt = f"""
-    Tu es un expert en sous-titres et en doublage.
-    Le texte ci-dessous est un fichier de sous-titres en anglais (par exemple SRT ou VTT).
-    Traduis UNIQUEMENT le texte visible à l'écran en français, en respectant STRICTEMENT les règles suivantes :
-    - tu dois conserver EXACTEMENT toutes les lignes contenant "-->" (les timestamps) SANS les modifier,
-    - tu ne changes PAS les numéros de blocs s'il y en a,
-    - tu ne modifies JAMAIS le format des timestamps ni leur position,
-    - SRT doit rester SRT, VTT doit rester VTT,
-    - tu remplaces simplement le texte dialogué par sa traduction française sur les lignes prévues pour le texte.
-    
-    Fichier de sous-titres :
-    {text}
-    
-    Retourne UNIQUEMENT le fichier de sous-titres complet en français, au même format, avec les mêmes timestamps.
-    """
+        You are an expert subtitle processor and translator.
 
+        You are given an SRT or VTT subtitle file in English.
+        Each subtitle block contains:
+        - an index
+        - a start and end timestamp
+        - one sentence fragment or sentence
+
+        Your task MUST follow these steps STRICTLY and IN ORDER:
+
+        ────────────────────────────────
+        STEP 1 — SENTENCE RECONSTRUCTION
+        ────────────────────────────────
+
+        Detect sentences that are split across multiple consecutive subtitle blocks.
+
+        A sentence is considered "split" if:
+        - it clearly continues grammatically or semantically in the next block
+        - the sentence does NOT end with a strong punctuation mark (".", "?", "!")
+
+        When a sentence is split across multiple blocks:
+        - Merge them into a SINGLE subtitle entry
+        - Concatenate the text in correct order with proper spacing
+        - The new START timestamp = start time of the first block
+        - The new END timestamp = end time of the last merged block
+        - Remove the intermediate blocks completely
+
+        Repeat this process until all sentences are complete.
+
+        ────────────────────────────────
+        STEP 2 — TRANSLATION
+        ────────────────────────────────
+
+        After ALL sentence reconstruction is finished:
+
+        Translate EACH subtitle line into French.
+
+        IMPORTANT RULES FOR TRANSLATION:
+        - DO NOT modify timestamps
+        - DO NOT merge or split any subtitles anymore
+        - Translate line by line
+        - Preserve the subtitle format (index, timestamp, text)
+        - Use natural, professional French suitable for video subtitles
+        - Keep the meaning accurate, not literal word-for-word
+    Subtitle file : {text}
+        ────────────────────────────────
+        OUTPUT FORMAT
+        ────────────────────────────────
+
+        Return ONLY the final subtitle file in valid SRT format.
+
+        Do NOT include:
+        - explanations
+        - comments
+        - markdown
+        - analysis
+        - apologies
+
+        Output must be directly usable as a subtitle file.
+        return ONLY the complete subtitle file in french, with the same format.
+        
+
+    """
     try:
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
@@ -211,30 +331,7 @@ def _chunk_text_for_tts(text: str, max_chars: int = 1000):
     """Découpe le texte en morceaux compatibles avec les limites d'Edge-TTS.
 
     - Découpe d'abord par lignes (issues des sous-titres),
-    - Si une ligne est encore trop longue, on la re-découpe par phrases.
     """
-    def _split_long_line(line: str, limit: int):
-        # Découpe grossière par ponctuation forte
-        sentences = re.split(r'(?<=[\.\?\!])\s+', line)
-        parts = []
-        current = []
-        current_len = 0
-        for s in sentences:
-            s = s.strip()
-            if not s:
-                continue
-            extra = len(s) + 1
-            if current_len + extra > limit and current:
-                parts.append(" ".join(current))
-                current = [s]
-                current_len = len(s)
-            else:
-                current.append(s)
-                current_len += extra
-        if current:
-            parts.append(" ".join(current))
-        return parts
-
     chunks = []
     current = []
     current_len = 0
@@ -244,18 +341,14 @@ def _chunk_text_for_tts(text: str, max_chars: int = 1000):
         if not line:
             continue
 
-        # Si la ligne dépasse la limite à elle seule, on la découpe en sous-parties
-        sub_lines = _split_long_line(line, max_chars) if len(line) > max_chars else [line]
-
-        for sub in sub_lines:
-            extra = len(sub) + 1  # +1 pour un saut de ligne / espace
-            if current_len + extra > max_chars and current:
-                chunks.append("\n".join(current))
-                current = [sub]
-                current_len = len(sub)
-            else:
-                current.append(sub)
-                current_len += extra
+        extra = len(line) + 1  # +1 pour un saut de ligne / espace
+        if current_len + extra > max_chars and current:
+            chunks.append("\n".join(current))
+            current = [line]
+            current_len = len(line)
+        else:
+            current.append(line)
+            current_len += extra
 
     if current:
         chunks.append("\n".join(current))
@@ -264,91 +357,91 @@ def _chunk_text_for_tts(text: str, max_chars: int = 1000):
     return chunks
 
 
-def translate_first_cue(subtitle_path: str, output_subtitle_path: str) -> str:
-    """Traduit uniquement le texte du premier bloc de sous-titres en français.
+# def translate_first_cue(subtitle_path: str, output_subtitle_path: str) -> str:
+#     """Traduit uniquement le texte du premier bloc de sous-titres en français.
 
-    - Conserve les timestamps et la structure du fichier.
-    - Écrit un nouveau fichier où seul le premier bloc textuel est remplacé par la traduction.
-    Retourne le contenu du fichier modifié.
-    """
-    print("Traduction : uniquement le premier bloc de sous-titres...")
-    if not os.path.exists(subtitle_path):
-        raise FileNotFoundError(f"Le fichier de sous-titres '{subtitle_path}' est introuvable.")
+#     - Conserve les timestamps et la structure du fichier.
+#     - Écrit un nouveau fichier où seul le premier bloc textuel est remplacé par la traduction.
+#     Retourne le contenu du fichier modifié.
+#     """
+#     print("Traduction : uniquement le premier bloc de sous-titres...")
+#     if not os.path.exists(subtitle_path):
+#         raise FileNotFoundError(f"Le fichier de sous-titres '{subtitle_path}' est introuvable.")
 
-    cues = _parse_subtitles_with_times(subtitle_path)
-    if not cues:
-        raise ValueError("Aucun bloc de sous-titres trouvé.")
+#     cues = _parse_subtitles_with_times(subtitle_path)
+#     if not cues:
+#         raise ValueError("Aucun bloc de sous-titres trouvé.")
 
-    first_text = cues[0][2]
+#     first_text = cues[0][2]
 
-    client = Groq(api_key=GROQ_API_KEY)
-    prompt = f"""
-    Tu es un traducteur professionnel.
-    Traduits uniquement le texte suivant en français, sans ajouter d'autres explications ni modifier la ponctuation:
+#     client = Groq(api_key=GROQ_API_KEY)
+#     prompt = f"""
+#     Tu es un traducteur professionnel.
+#     Traduits uniquement le texte suivant en français, sans ajouter d'autres explications ni modifier la ponctuation:
 
-    ---
-    {first_text}
-    ---
+#     ---
+#     {first_text}
+#     ---
 
-    Retourne uniquement la traduction.
-    """
+#     Retourne uniquement la traduction.
+#     """
 
-    try:
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
-            temperature=0.0,
-        )
-        translated = chat_completion.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"Erreur Groq lors de la traduction du premier bloc: {e}. Tentative de fallback...")
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile",
-            temperature=0.0,
-        )
-        translated = chat_completion.choices[0].message.content.strip()
+#     try:
+#         chat_completion = client.chat.completions.create(
+#             messages=[{"role": "user", "content": prompt}],
+#             model="meta-llama/llama-4-scout-17b-16e-instruct",
+#             temperature=0.0,
+#         )
+#         translated = chat_completion.choices[0].message.content.strip()
+#     except Exception as e:
+#         print(f"Erreur Groq lors de la traduction du premier bloc: {e}. Tentative de fallback...")
+#         chat_completion = client.chat.completions.create(
+#             messages=[{"role": "user", "content": prompt}],
+#             model="llama-3.3-70b-versatile",
+#             temperature=0.0,
+#         )
+#         translated = chat_completion.choices[0].message.content.strip()
 
-    # Lire le fichier original et remplacer le premier bloc textuel
-    with open(subtitle_path, "r", encoding="utf-8") as f:
-        lines = [ln.rstrip("\n") for ln in f]
+#     # Lire le fichier original et remplacer le premier bloc textuel
+#     with open(subtitle_path, "r", encoding="utf-8") as f:
+#         lines = [ln.rstrip("\n") for ln in f]
 
-    out_lines = []
-    i = 0
-    n = len(lines)
-    replaced = False
-    while i < n:
-        line = lines[i]
-        out_lines.append(line)
-        if not replaced and "-->" in line:
-            # on est sur la ligne de timestamps du premier bloc possible
-            # collect following text lines until blank
-            i += 1
-            # skip any blank lines immediately after timestamps
-            text_block_idx = i
-            text_block = []
-            while i < n and lines[i].strip():
-                text_block.append(lines[i])
-                i += 1
+#     out_lines = []
+#     i = 0
+#     n = len(lines)
+#     replaced = False
+#     while i < n:
+#         line = lines[i]
+#         out_lines.append(line)
+#         if not replaced and "-->" in line:
+#             # on est sur la ligne de timestamps du premier bloc possible
+#             # collect following text lines until blank
+#             i += 1
+#             # skip any blank lines immediately after timestamps
+#             text_block_idx = i
+#             text_block = []
+#             while i < n and lines[i].strip():
+#                 text_block.append(lines[i])
+#                 i += 1
 
-            # write translated text (single or multiple lines)
-            for tline in translated.splitlines():
-                out_lines.append(tline)
+#             # write translated text (single or multiple lines)
+#             for tline in translated.splitlines():
+#                 out_lines.append(tline)
 
-            # if there was a blank line after original text, keep one
-            if i < n and not lines[i].strip():
-                out_lines.append("")
+#             # if there was a blank line after original text, keep one
+#             if i < n and not lines[i].strip():
+#                 out_lines.append("")
 
-            replaced = True
-            continue
-        i += 1
+#             replaced = True
+#             continue
+#         i += 1
 
-    result = "\n".join(out_lines)
-    with open(output_subtitle_path, "w", encoding="utf-8") as f:
-        f.write(result)
+#     result = "\n".join(out_lines)
+#     with open(output_subtitle_path, "w", encoding="utf-8") as f:
+#         f.write(result)
 
-    print(f"   -> Fichier avec premier bloc traduit sauvegardé dans : {output_subtitle_path}")
-    return result
+#     print(f"   -> Fichier avec premier bloc traduit sauvegardé dans : {output_subtitle_path}")
+#     return result
 
 async def generate_french_audio(text, output_path):
     """Génère l'audio Français via Edge-TTS (avec découpe en chunks pour ne rien couper)."""
@@ -392,12 +485,41 @@ async def generate_french_audio(text, output_path):
             except Exception:
                 pass
 
+def _trim_outer_silence(seg: AudioSegment, *, min_silence_len_ms: int = 80) -> AudioSegment:
+    """Supprime le silence au début/à la fin d'un segment TTS (utile pour coller au timestamp)."""
+    try:
+        if seg.dBFS == float("-inf"):
+            return seg
+    except Exception:
+        return seg
+
+    # Seuil dynamique : plus fiable que fixer une valeur unique pour tous les clips.
+    silence_thresh = min(-40.0, seg.dBFS - 16.0)
+    try:
+        ranges = detect_nonsilent(
+            seg,
+            min_silence_len=min_silence_len_ms,
+            silence_thresh=silence_thresh,
+        )
+    except Exception:
+        return seg
+
+    if not ranges:
+        return seg
+
+    start_ms = max(0, int(ranges[0][0]))
+    end_ms = min(len(seg), int(ranges[-1][1]))
+    if end_ms <= start_ms:
+        return seg
+
+    return seg[start_ms:end_ms]
+
 async def generate_french_audio_from_subtitles(subtitle_path: str, output_path: str):
     """Génère l'audio Français en respectant les timings de chaque ligne de sous-titres.
 
     - Utilise les sous-titres FR (déjà traduits) avec leurs timestamps,
     - Génère un segment audio par bloc,
-    - Adapte la vitesse/durée pour coller à la fenêtre temporelle,
+    - Vitesse de lecture naturelle (aucun time-stretch ni ajustement de durée),
     - Positionne chaque segment au bon instant dans une piste audio globale.
     """
     print("4. Génération de l'audio Français (Edge-TTS) aligné sur les sous-titres...")
@@ -407,53 +529,40 @@ async def generate_french_audio_from_subtitles(subtitle_path: str, output_path: 
     if not cues:
         raise ValueError("Aucun bloc de sous-titres trouvé pour la synthèse vocale.")
 
-    # Durée totale = fin du dernier bloc + petite marge
-    last_end = max(end for _, end, _ in cues)
-    full = AudioSegment.silent(duration=int((last_end + 0.5) * 1000))
+    # Durée totale = fin du dernier bloc + marge pour segments à durée naturelle
+    last_end_ms = max(end_ms for _, end_ms, _ in cues)
+    full_duration_ms = int(last_end_ms + 5000)
+
+    # Edge-TTS renvoie typiquement du MP3 24kHz mono. Fixer un format cible évite des surprises lors des overlays.
+    target_frame_rate = 24000
+    target_channels = 1
+
+    full = AudioSegment.silent(duration=full_duration_ms, frame_rate=target_frame_rate).set_channels(target_channels)
 
     temp_files = []
     try:
-        for idx, (start_s, end_s, text) in enumerate(cues):
-            desired_ms = int(max(0.1, end_s - start_s) * 1000)
-            if desired_ms <= 0:
-                continue
-
+        for idx, (start_ms, end_ms, text) in enumerate(cues):
             temp_path = f"{output_path}.cue{idx}.mp3"
             temp_files.append(temp_path)
-            # 1) Generate a raw TTS segment
             communicate = edge_tts.Communicate(text, voice)
             await communicate.save(temp_path)
 
             seg = AudioSegment.from_file(temp_path, format="mp3")
-            current_ms = len(seg)
+            seg = seg.set_frame_rate(target_frame_rate).set_channels(target_channels)
+            seg = _trim_outer_silence(seg)
 
-            # Ajustement de durée : utiliser directement le time-stretch via frame_rate + pad/trim.
-            # Évitons la régénération SSML pour gagner du temps.
-            if current_ms == 0:
-                seg = AudioSegment.silent(duration=desired_ms)
-            else:
-                if abs(current_ms - desired_ms) > 10:  # tolerance de 10 ms
-                    speed = current_ms / float(desired_ms)
-                    # clamp speed to reasonable bounds to avoid artefacts
-                    speed = max(0.5, min(speed, 2.0))
-                    new_frame_rate = int(seg.frame_rate * speed)
-                    stretched = seg._spawn(seg.raw_data, overrides={"frame_rate": new_frame_rate})
-                    stretched = stretched.set_frame_rate(seg.frame_rate)
-                    if len(stretched) > desired_ms:
-                        seg = stretched[:desired_ms]
-                    else:
-                        seg = stretched + AudioSegment.silent(duration=desired_ms - len(stretched))
+            if len(seg) > 0:
+                full = full.overlay(seg, position=int(start_ms))
 
-            position_ms = int(start_s * 1000)
-            full = full.overlay(seg, position=position_ms)
-
-        full.export(output_path, format="mp3")
+        out_ext = os.path.splitext(output_path)[1].lower().lstrip(".") or "mp3"
+        full.export(output_path, format=out_ext)
         print(f"   -> Audio aligné sur les sous-titres généré : {output_path}")
     finally:
         for temp_path in temp_files:
             try:
                 if os.path.exists(temp_path):
-                    os.remove(temp_path)
+                    # os.remove(temp_path)
+                    pass
             except Exception:
                 pass
 

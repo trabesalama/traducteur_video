@@ -10,6 +10,8 @@ dependencies = [
     "groq>=1.0.0",
     "moviepy>=2.2.1",
     "openai>=2.16.0",
+    "pysrt>=1.1.2",
+    "pytest>=9.0.2",
     "python-dotenv>=1.2.1",
     "requests>=2.32.5",
 ]

@@ -1,0 +1,12 @@
+# Prompt template: Translate a single subtitle cue
+
+Replace {{TEXT}} with the cue text to translate.
+
+Translate only the following subtitle text to natural spoken French. Return only the translated text — no explanations, no extra lines, no formatting changes.
+
+---
+{{TEXT}}
+---
+
+Short strict instruction:
+"Return only the translated text, with no additional commentary or lines."
